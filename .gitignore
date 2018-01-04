@@ -1,0 +1,4 @@
+.vscode/*
+docs/build/*
+docs/doxygen/*
+lightlog_test

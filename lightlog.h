@@ -118,6 +118,13 @@ std::mutex Logger::mtx_;
 
 # define LLOG(level) (*llog::Logger::get_instance()) += llog::Message(level, __FILE__, __FUNCTION__, __LINE__)
 
+# define INFO 0
+# define WARN 1
+# define ERRO 2
+
+# define LLOG_INFO LLOG(INFO)
+# define LLOG_WARN LLOG(WARN)
+# define LLOG_ERRO LLOG(ERRO)
 
 } //namespace llog
 

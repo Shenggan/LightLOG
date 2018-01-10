@@ -18,6 +18,12 @@ void *test(void *arg) {
 
 
 int main (int argc, char *argv[]) {
+
+    LLOG_LV(INFO);
+    LLOG_FILE(); 
+    LLOG_FILE(); 
+    LLOG_CONSOLE_OFF();
+
     pthread_t tid;
     pthread_create(&tid, NULL, test, NULL);
 

@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <ostream>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <memory>
@@ -26,25 +27,28 @@ enum LOG_LEVEL {
 
 class Message {
 private:
+    std::string head;
+    std::string head_color;
     std::string msg;
-    std::string colorStr(int color, int bold, const std::string & delimiter, const std::string & t) {
+    std::string colorStr(int color, int bold, const std::string & delimiter, const std::string & t, bool if_color = true) {
         std::stringstream ss;
-        ss << "\033[" << bold << ";" << color << "m";
+        if (if_color)
+            ss << "\033[" << bold << ";" << color << "m";
         ss << t;
-        ss << "\033[0m";
+        if (if_color)
+            ss << "\033[0m";
         ss << delimiter;
 		return ss.str();
     }
     
-    std::string logHeader(int level, std::string file, std::string function, int linenumber) {
+    std::string logHeader(int level, std::string file, std::string function, int linenumber, bool if_color = true) {
         std::stringstream ss;
         std::stringstream st;
         int color = 39;
         if (level==2) { color = COLOR_ERR; st << "[ERRO]"; }
 		if (level==0) { color = COLOR_MSG; st << "[INFO]"; }
 		if (level==1) { color = COLOR_WRN; st << "[WARN]"; }
-
-        ss << colorStr(color,1,DELIMITER,st.str());
+        ss << colorStr(color,1,DELIMITER,st.str(), if_color);
 
         time_t rawtime;
 		struct tm * timeinfo;
@@ -52,22 +56,23 @@ private:
 		time(&rawtime);
 		timeinfo = localtime(&rawtime);
 		strftime(timeBuffer, 30, "%Y/%m/%d-%H:%M:%S", timeinfo); 
-		ss << colorStr(color, 0, DELIMITER, timeBuffer);
+		ss << colorStr(color, 0, DELIMITER, timeBuffer, if_color);
 
         int pPos = 0;
 		for (int i = file.length()-1; i > 0; i--)
 			if (file.substr(i,1)==std::string("/"))
 			{ pPos = i+1; break; }
 		file = file.substr(pPos,file.length()-pPos);
-		ss << colorStr(COLOR_FILE, 0, ":", file); //35
-		ss << colorStr(COLOR_LINE, 1, ":", std::to_string(linenumber)); //32
-		ss << colorStr(COLOR_FUNC, 0, DELIMITER, function); //36
+		ss << colorStr(COLOR_FILE, 0, ":", file, if_color); //35
+		ss << colorStr(COLOR_LINE, 1, ":", std::to_string(linenumber), if_color); //32
+		ss << colorStr(COLOR_FUNC, 0, DELIMITER, function, if_color); //36
 
         return ss.str();
     }
 public:
     Message(const int level = 0, std::string file = nullptr, std::string function = nullptr, const int linenumber = 0) {
-        msg += logHeader(level, file, function, linenumber);
+        head_color = logHeader(level, file, function, linenumber);
+        head = logHeader(level, file, function, linenumber, false);
     }
     template <typename T> Message& operator<<(const T & t) {
         std::stringstream ss;
@@ -75,8 +80,10 @@ public:
         msg += ss.str();
         return *this;
     }
-    std::string get_string() const {
-        return msg;
+    std::string get_string(bool if_color = true) const {
+        if (if_color)
+            return head_color + msg;
+        return head + msg;
     }
 };
 
@@ -86,7 +93,14 @@ private:
     static std::unique_ptr<Logger>          m_instance_;
     LOG_LEVEL                               m_level_;
     static std::mutex                       mtx_;
-    Logger(){};
+    bool                                    console_;
+    bool                                    file_;
+    std::ofstream                           log_file;
+    Logger() { 
+        m_level_ = LOG_LEVEL_INFO; 
+        console_ = true;
+        file_ = false;
+    };
 public:
     static Logger* get_instance() {
         if (m_instance_ == nullptr) {
@@ -98,17 +112,36 @@ public:
         }
         return m_instance_.get();
     }
+
+    void init_log_file(std::string log_file_name = "output.log") {
+        if (file_ == true)
+            log_file.close();
+        log_file.open(log_file_name);
+        file_ = true;
+    }
     
     void set_level(int level) {
         m_level_ = LOG_LEVEL(level);
     }
+
     int get_level() const {
         return m_level_;
     }
 
+    void set_console(bool b) {
+        console_ = b;
+    }
+    
+    int get_console() const {
+        return console_;
+    }
+
     void operator+=(const Message& m)
     {
-        std::cout << m.get_string() + '\n';
+        if (console_)
+            std::cout << m.get_string() + '\n';
+        if (file_)
+            log_file << m.get_string(false) + '\n';
     }
 
 };
@@ -116,7 +149,7 @@ public:
 std::unique_ptr<Logger> Logger::m_instance_ = nullptr;
 std::mutex Logger::mtx_;
 
-# define LLOG(level) (*llog::Logger::get_instance()) += llog::Message(level, __FILE__, __FUNCTION__, __LINE__)
+# define LLOG(level) if (level >= (*llog::Logger::get_instance()).get_level()) (*llog::Logger::get_instance()) += llog::Message(level, __FILE__, __FUNCTION__, __LINE__)
 
 # define INFO 0
 # define WARN 1
@@ -125,6 +158,17 @@ std::mutex Logger::mtx_;
 # define LLOG_INFO LLOG(INFO)
 # define LLOG_WARN LLOG(WARN)
 # define LLOG_ERRO LLOG(ERRO)
+
+# define LLOG_LV(level) (*llog::Logger::get_instance()).set_level(level)
+
+# define LLOG_LV_INFO LLOG_LV(INFO)
+# define LLOG_LV_WARN LLOG_LV(WARN)
+# define LLOG_LV_ERRO LLOG_LV(ERRO)
+
+# define LLOG_FILE(fn) (*llog::Logger::get_instance()).init_log_file(fn);
+
+# define LLOG_CONSOLE_OFF() (*llog::Logger::get_instance()).set_console(false)
+# define LLOG_CONSOLE_ON() (*llog::Logger::get_instance()).set_console(true)
 
 } //namespace llog
 

@@ -8,18 +8,19 @@
 #include <string>
 #include <memory>
 #include <mutex>
+#include <cstdlib>
 
 namespace llog {
 
 enum LOG_LEVEL {
     LOG_LEVEL_INFO,
-    LOG_LEVEL_ERROR,
-    LOG_LEVEL_WARNING
+    LOG_LEVEL_WARNING,
+    LOG_LEVEL_ERROR
 };
 
-#define COLOR_ERR 31 //31
-#define COLOR_MSG 37 //37
-#define COLOR_WRN 33 //33
+#define COLOR_ERRO 31 //31
+#define COLOR_INFO 37 //37
+#define COLOR_WARN 33 //33
 #define COLOR_FILE 35 //35
 #define COLOR_LINE 32 //32
 #define COLOR_FUNC 36 //36
@@ -45,9 +46,9 @@ private:
         std::stringstream ss;
         std::stringstream st;
         int color = 39;
-        if (level==2) { color = COLOR_ERR; st << "[ERRO]"; }
-		if (level==0) { color = COLOR_MSG; st << "[INFO]"; }
-		if (level==1) { color = COLOR_WRN; st << "[WARN]"; }
+        if (level==2) { color = COLOR_ERRO; st << "[ERRO]"; }
+		if (level==0) { color = COLOR_INFO; st << "[INFO]"; }
+		if (level==1) { color = COLOR_WARN; st << "[WARN]"; }
         ss << colorStr(color,1,DELIMITER,st.str(), if_color);
 
         time_t rawtime;
@@ -96,8 +97,18 @@ private:
     bool                                    console_;
     bool                                    file_;
     std::ofstream                           log_file;
-    Logger() { 
-        m_level_ = LOG_LEVEL_INFO; 
+    Logger() {
+        if (getenv("LLOG_LV") == NULL)
+            m_level_ = LOG_LEVEL_INFO;
+        else{
+            std::string ev_level = getenv("LLOG_LV");
+            if (ev_level == "WARN")
+                m_level_ = LOG_LEVEL_WARNING;
+            else if (ev_level == "ERRO")
+                m_level_ = LOG_LEVEL_ERROR;
+            else
+                m_level_ = LOG_LEVEL_INFO;
+        }
         console_ = true;
         file_ = false;
     };
@@ -138,10 +149,12 @@ public:
 
     void operator+=(const Message& m)
     {
+        mtx_.lock();
         if (console_)
             std::cout << m.get_string() + '\n';
         if (file_)
             log_file << m.get_string(false) + '\n';
+        mtx_.unlock();
     }
 
 };
